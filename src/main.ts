@@ -15,8 +15,8 @@ const reconnectAbortSignal = { abort: false };
 let isSearchingForObject = true;
 
 // Keep a persistent reference to the canvas and its context
-let kioskCanvas: HTMLCanvasElement | null = null;
-let kioskCtx: CanvasRenderingContext2D | null = null;
+let detectionsCanvas: HTMLCanvasElement | null = null;
+let detectionsCtx: CanvasRenderingContext2D | null = null;
 
 // Disable control panel
 function disableControlPanel() {
@@ -38,22 +38,22 @@ function enableControlPanel() {
   resetEl.style.opacity = '1.0';
 }
 
-// Sets up the kiosk view by creating a single, reusable canvas. Call on startup.
-function initializeKioskView() {
-  const imageContainer = document.getElementById('kioskView');
+// Sets up the detections view by creating a single, reusable canvas. Call on startup.
+function initializeDetectionsView() {
+  const imageContainer = document.getElementById('detectionsView');
   if (imageContainer) {
     // Create the canvas element
-    kioskCanvas = document.createElement('canvas');
+    detectionsCanvas = document.createElement('canvas');
     
     // Get the context for drawing
-    kioskCtx = kioskCanvas.getContext('2d');
+    detectionsCtx = detectionsCanvas.getContext('2d');
     
     // Append the canvas to the container. This is the LAST time
     // we will manipulate the DOM for the canvas.
     imageContainer.innerHTML = ''; // Clear any placeholders
-    imageContainer.appendChild(kioskCanvas);
+    imageContainer.appendChild(detectionsCanvas);
   } else {
-    console.error("Kiosk container 'kioskView' not found!");
+    console.error("Detections container 'detectionsView' not found!");
   }
 }
 
@@ -78,13 +78,13 @@ async function convertToBase64String(rawImage: Uint8Array) {
 async function renderDetectedObject(visionServiceData: any) {
   // Use the globally available context and canvas.
   // If they don't exist, we can't draw, so we exit early.
-  if (!kioskCanvas || !kioskCtx) {
-    console.error("Kiosk canvas is not initialized.");
+  if (!detectionsCanvas || !detectionsCtx) {
+    console.error("Detections canvas is not initialized.");
     return;
   }
   
-  // Reference kioskCtx for all drawing operations.
-  const ctx = kioskCtx;
+  // Reference detectionsCtx for all drawing operations.
+  const ctx = detectionsCtx;
   
   if (visionServiceData.image) {
     // Create image element to load the base64 data
@@ -93,12 +93,12 @@ async function renderDetectedObject(visionServiceData: any) {
     
     img.onload =  () => {
       // Set canvas dimensions to match new image from stream
-      if (kioskCanvas) {
-        kioskCanvas.width = img.width;
-        kioskCanvas.height = img.height;
+      if (detectionsCanvas) {
+        detectionsCanvas.width = img.width;
+        detectionsCanvas.height = img.height;
 
         // Clear old drawing
-        ctx.clearRect(0, 0, kioskCanvas.width, kioskCanvas.height);
+        ctx.clearRect(0, 0, detectionsCanvas.width, detectionsCanvas.height);
       }
 
       // Draw the original image
@@ -191,7 +191,7 @@ async function main() {
   const gripper = new VIAM.GripperClient(machine, 'dofbot-gripper');
 
   startEl.addEventListener('click', async () => {
-    initializeKioskView();
+    initializeDetectionsView();
 
     await arm.moveToJointPositions([0,0,0,90,0]);
 

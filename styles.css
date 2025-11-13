@@ -65,7 +65,7 @@ button#stop {
     font-size: 20px;
 }
 
-div #kioskView {
+div #detectionsView {
     height: 480px;
     width: 640px;
     border: black solid 3px;
