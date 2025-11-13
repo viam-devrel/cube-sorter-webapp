@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+
+# Optional npm cache directory
+.npm
+
+# Logs
+logs
+*.log
+
+# Environment variables
+.env
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Optional cache files
+.cache/
+
+# Optional debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore build outputs
+dist/
+build/
+
+# Ignore VSCode files
+.vscode/
