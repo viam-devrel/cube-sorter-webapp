@@ -1,38 +1,43 @@
 <!doctype html>
 <html>
-  <head>
-    <title>CV Checkout</title>
-    <link rel="icon" href="favicon.ico" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,100..900;1,100..900&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <h1 class="centered">Cube into Bowl</h1>
-    <div id="main" class="flex-row-center">
-      <div id="detectionsView"></div>
-      <div id="itemInfo">
-        <p class="detection-label">Machine Status: <span id="connection-status">...</span></p>
-        <p class="detection-label">Cube Detected at: <span id="detected-obj-coordinates"></span></p>
-        <p id="detectionLabel"></p>
-      </div>
+
+<head>
+  <title>Cube Sorter</title>
+  <link rel="icon" href="favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,100..900;1,100..900&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <h1 class="centered">Cube into Bowl</h1>
+  <div id="main" class="flex-row-center">
+    <div id="detectionsView"></div>
+    <div id="itemInfo">
+      <p class="detection-label">Machine Status: <span id="connection-status">Waiting to Connect...</span></p>
+      <p class="detection-label">Cube Detected at: <span id="detected-obj-coordinates"></span></p>
+      <p id="detectionLabel"></p>
     </div>
-    <div id="controlPanel" class="flex-row-center pad-top">
-      <div class="flex-column-center">
-        <button id="start">Start</button>
-        <p>Start looking for objects, then place detected object into bowl.</p>
-      </div>
-      <div class="flex-column-center">
-        <button id="stop">Stop</button>
-        <p>Interrupt current motion and stop the arm.</p>
-      </div>
-      <div class="flex-column-center">
-        <button id="reset">Reset</button>
-        <p>Return arm to home position.</p>
-      </div>
+  </div>
+  <div id="controlPanel" class="flex-row-center pad-top">
+    <div class="flex-column-center">
+      <button id="start">Start</button>
+      <p>Start looking for objects, then place detected object into bowl.</p>
     </div>
-    <div class="viam-logo" alt="Viam logo"></div>
-    <script type="module" src="src/main.ts"></script>
-  </body>
+    <div class="flex-column-center">
+      <button id="stop">Stop</button>
+      <p>Interrupt current motion and stop the arm.</p>
+    </div>
+    <div class="flex-column-center">
+      <button id="reset">Reset</button>
+      <p>Return arm to home position.</p>
+    </div>
+  </div>
+  <div class="viam-logo" alt="Viam logo"></div>
+  <script type="module" src="src/main.ts"></script>
+</body>
+
 </html>
