@@ -68,8 +68,6 @@ button#stop {
 div #detectionsView {
     height: 480px;
     width: 640px;
-    border: black solid 3px;
-    border-radius: 5px;
 }
 
 div #itemInfo {

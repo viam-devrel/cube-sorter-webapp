@@ -6,13 +6,16 @@
   "type": "module",
   "license": "Apache-2.0",
   "scripts": {
-    "dev": "vite"
+    "dev": "vite",
+    "build": "vite build"
   },
   "devDependencies": {
+    "@types/js-cookie": "^3.0.6",
     "typescript": "^5.2.2",
     "vite": "^5.2.0"
   },
   "dependencies": {
-    "@viamrobotics/sdk": "^0.52.2"
+    "@viamrobotics/sdk": "^0.57.0",
+    "js-cookie": "^3.0.5"
   }
 }

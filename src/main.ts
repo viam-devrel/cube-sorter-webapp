@@ -1,8 +1,18 @@
 import * as VIAM from '@viamrobotics/sdk';
+import { getMachineKeyFromURL, getCredentialsFromCookie } from './utils';
+import { Struct, StreamClient } from '@viamrobotics/sdk';
 
-const HOST = import.meta.env.VITE_HOST;
-const API_KEY_ID = import.meta.env.VITE_API_KEY_ID;
-const API_KEY = import.meta.env.VITE_API_KEY;
+type CaptureAllResponse = {
+  image?: VIAM.cameraApi.Image;
+  classifications: VIAM.visionApi.Classification[];
+  detections: VIAM.visionApi.Detection[];
+  objectPointClouds: VIAM.commonApi.PointCloudObject[];
+  extra?: VIAM.Struct;
+}
+
+let camera: VIAM.CameraClient;
+let stream: VIAM.StreamClient
+let machine: VIAM.RobotClient;
 
 const connectionStatusEl = <HTMLElement>(
   document.getElementById('connection-status')
@@ -10,13 +20,26 @@ const connectionStatusEl = <HTMLElement>(
 const startEl = <HTMLButtonElement>document.getElementById('start');
 const stopEl = <HTMLButtonElement>document.getElementById('stop');
 const resetEl = <HTMLButtonElement>document.getElementById('reset');
+const objCoordinatesSpan = document.getElementById('detected-obj-coordinates');
 
 const reconnectAbortSignal = { abort: false };
 let isSearchingForObject = true;
+let isStreaming = false;
+let animationFrameId: number;
 
 // Keep a persistent reference to the canvas and its context
 let detectionsCanvas: HTMLCanvasElement | null = null;
 let detectionsCtx: CanvasRenderingContext2D | null = null;
+
+// Home Joint Positions
+const HOME_JOINT_POSITION = [
+    -0.14130027592182162,
+    -0.5319597721099854,
+    0.6547077298164368,
+    0.025027848780155182,
+    1.0353490114212036,
+    2.988678455352783
+  ];
 
 // Disable control panel
 function disableControlPanel() {
@@ -58,7 +81,7 @@ function initializeDetectionsView() {
 }
 
 async function getEverythingFromVisionService(vision: VIAM.VisionClient) {
-  const captureAll = await vision.captureAllFromCamera('overhead-cam', {
+  const captureAll = await vision.captureAllFromCamera('realsense-cam', {
     returnImage: true,
     returnClassifications: true,
     returnDetections: true,
@@ -70,12 +93,12 @@ async function getEverythingFromVisionService(vision: VIAM.VisionClient) {
 // Converts what we get from vision service to base64 string.
 async function convertToBase64String(rawImage: Uint8Array) {
   return btoa(Array.from(rawImage)
-          .map((byte) => String.fromCharCode(byte))
-          .join('')
-        );
+      .map((byte) => String.fromCharCode(byte))
+      .join('')
+    );
 }
 
-async function renderDetectedObject(visionServiceData: any) {
+async function renderDetectedObject(visionServiceData: CaptureAllResponse) {
   // Use the globally available context and canvas.
   // If they don't exist, we can't draw, so we exit early.
   if (!detectionsCanvas || !detectionsCtx) {
@@ -93,37 +116,44 @@ async function renderDetectedObject(visionServiceData: any) {
     
     img.onload =  () => {
       // Set canvas dimensions to match new image from stream
-      if (detectionsCanvas) {
-        detectionsCanvas.width = img.width;
-        detectionsCanvas.height = img.height;
+      const cvsWidth = detectionsCanvas.width;
+      const cvsHeight = detectionsCanvas.height;
 
+      if (detectionsCanvas) {
         // Clear old drawing
-        ctx.clearRect(0, 0, detectionsCanvas.width, detectionsCanvas.height);
+        ctx.clearRect(0, 0, cvsWidth, cvsHeight);
       }
+      const scaleFactor = Math.max(cvsWidth / img.width, cvsHeight / img.height);
+      const drawWidth = img.width * scaleFactor;
+      const drawHeight = img.height * scaleFactor;
 
       // Draw the original image
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, drawWidth, drawHeight);
+
+      if (objCoordinatesSpan) {
+        objCoordinatesSpan.innerText = ""
+      }
       
       // Draw bounding boxes and labels for each detection
       visionServiceData.detections.forEach((detection) => {
         // Convert coordinates to numbers explicitly
-        const xMin = Number(detection.xMin || 0);
-        const yMin = Number(detection.yMin || 0);
-        const xMax = Number(detection.xMax || 0);
-        const yMax = Number(detection.yMax || 0);
+        const xMin = Number(detection.xMin || 0) * drawWidth;
+        const yMin = Number(detection.yMin || 0) * drawHeight;
+        const xMax = Number(detection.xMax || 0) * drawWidth;
+        const yMax = Number(detection.yMax || 0) * drawHeight;
         const width = xMax - xMin;
         const height = yMax - yMin;
         
         // Draw bounding box
         ctx.strokeStyle = '#00ef83'; // Viam blue accent
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1;
         ctx.strokeRect(xMin, yMin, width, height);
         
         // Draw label background
         const label = `${detection.className} (${(detection.confidence * 100).toFixed(1)}%)`;
-        ctx.font = '16px Arial';
+        ctx.font = '10px Helvetica';
         const textMetrics = ctx.measureText(label);
-        const textHeight = 20;
+        const textHeight = 12;
 
         ctx.fillStyle = '#00ef83';
         ctx.fillRect(xMin, yMin - textHeight, textMetrics.width + 8, textHeight);
@@ -131,9 +161,6 @@ async function renderDetectedObject(visionServiceData: any) {
         // Draw label text
         ctx.fillStyle = '#000000';
         ctx.fillText(label, xMin + 4, yMin - 4);
-        
-        // Render object location
-        const objCoordinatesSpan = document.getElementById('detected-obj-coordinates');
         
         if (objCoordinatesSpan) {
           objCoordinatesSpan.innerText = `[x: ${(xMin + 4).toString()}, y: ${(yMin - 4).toString()}]` || '';
@@ -145,6 +172,60 @@ async function renderDetectedObject(visionServiceData: any) {
     img.src = `data:image/jpeg;base64,${base64string}`;
   }
 }
+
+const startStream = () => {
+  // Initialize stream client
+  stream = new StreamClient(machine);
+  isStreaming = true;
+  updateCameraStream();
+};
+
+const stopStream = () => {
+  isStreaming = false;
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+  }
+};
+
+const updateCameraStream = async () => {
+  if (!isStreaming) return;
+
+  try {
+    const imageContainer = document.getElementById("detectionsView");
+    
+    if (imageContainer) {
+      // Create or update video element
+      let videoElement = imageContainer.querySelector("video");
+      if (!videoElement) {
+        videoElement = document.createElement("video");
+        videoElement.autoplay = true;
+        videoElement.muted = true;
+        videoElement.style.width = '100%';
+        videoElement.style.height = '100%';
+        videoElement.style.objectFit = 'contain';
+        imageContainer.innerHTML = "";
+        imageContainer.appendChild(videoElement);
+      }
+
+      // Get and set the stream every frame
+      const mediaStream = await stream.getStream("realsense-cam");
+      videoElement.srcObject = mediaStream;
+
+      // Ensure video plays
+      try {
+        await videoElement.play();
+      } catch (playError) {
+        console.error("Error playing video:", playError);
+      }
+    }
+
+    // Request next frame
+    animationFrameId = requestAnimationFrame(() => updateCameraStream());
+  } catch (error) {
+    console.error("Stream error:", error);
+    stopStream();
+  }
+};
 
 const handleConnectionStateChange = (event: unknown) => {
   updateConnectionStatus(
@@ -173,29 +254,48 @@ const updateConnectionStatus = (eventType: VIAM.MachineConnectionEvent) => {
 async function main() {
   disableControlPanel();
 
-  const host = HOST;
+  const machineKey = getMachineKeyFromURL()
+  if (machineKey == undefined) {
+    throw new Error('Unable to find machine key for credentials')
+  }
 
-  const machine = await VIAM.createRobotClient({
+  const {
+    apiKey,
+    host
+  } = getCredentialsFromCookie(machineKey)
+
+machine = await VIAM.createRobotClient({
     host,
     credentials: {
       type: "api-key",
-      payload: API_KEY,
-      authEntity: API_KEY_ID,
+      payload: apiKey.key,
+      authEntity: apiKey.id,
     },
     signalingAddress: "https://app.viam.com:443",
   });
   updateConnectionStatus(VIAM.MachineConnectionEvent.CONNECTED);
   machine.on('connectionstatechange', handleConnectionStateChange);
 
-  const arm = new VIAM.ArmClient(machine, 'dofbot-arm');
-  const gripper = new VIAM.GripperClient(machine, 'dofbot-gripper');
+  const generic = new VIAM.GenericServiceClient(machine, 'sorter');
+
+  try {
+    camera = new VIAM.CameraClient(machine, "realsense-cam");
+    startStream();
+
+  } catch (error) {
+    
+  }
 
   startEl.addEventListener('click', async () => {
     initializeDetectionsView();
 
-    await arm.moveToJointPositions([0,0,0,90,0]);
+    const result = await generic.doCommand(
+      Struct.fromJson({
+        command: 'start'
+      })
+    );
 
-    const vision = new VIAM.VisionClient(machine, 'block-detection-service');
+    const vision = new VIAM.VisionClient(machine, 'detect-cubes');
     isSearchingForObject = true;
 
     // To get a "stream" of sorts, need to continuously poll for frames from vision service.
@@ -220,15 +320,22 @@ async function main() {
     reconnectAbortSignal.abort = true;
     isSearchingForObject = false
 
-    await arm.stop();
+    await machine.stopAll();
   });
 
   resetEl.addEventListener('click', async () => {
     isSearchingForObject = false
-    await arm.moveToJointPositions([0,25,0,90,0]);
+    const result = await generic.doCommand(
+      Struct.fromJson({
+        command: 'reset'
+      })
+    );
   });
 
-  
+  window.addEventListener("beforeunload", () => {
+    stopStream();
+    machine.disconnect();
+  });
 };
 
 main();
