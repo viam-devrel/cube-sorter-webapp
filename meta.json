@@ -1,0 +1,21 @@
+{
+  "module_id": "devrel:cube-sorter-webapp",
+  "visibility": "public",
+  "url": "https://github.com/viam-devrel/cube-sorter-webapp",
+  "description": "A simple web app to control Cube into Bowl Demo.",
+  "applications": [
+    {
+      "name": "cube-sorter-webapp",
+      "type": "single_machine",
+      "entrypoint": "dist/index.html",
+      "fragmentIds": [],
+      "logoPath": "static/logo.png",
+      "customizations": {
+        "machinePicker": {
+          "heading": "Cube in Bowl Webapp",
+          "subheading": "Control the Cube in Bowl Demo"
+        }
+      }
+    }
+  ]
+}
