@@ -29,6 +29,7 @@ yarn-error.log*
 # Ignore build outputs
 dist/
 build/
+module.tar.gz
 
 # Ignore VSCode files
 .vscode/
